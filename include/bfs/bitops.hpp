@@ -3,7 +3,9 @@
 //Code must not be used, distributed, without written consent by the authors
 #pragma once
 
-#include "sse.hpp"
+/* deleted by Jiachun */
+/*#include "sse.hpp"*/
+
 #include <bitset>
 #include <cmath>
 
@@ -96,6 +98,7 @@ public:
 // Normal logic again
 template<typename bit_t> const BitBaseOp<bit_t> BitBaseOp<bit_t>::masks = BitBaseOp<bit_t>();
 
+/* Deleted by Jiachun
 // SSE specialization
 template<>
 struct CtzlOp<__m128i> {
@@ -207,3 +210,4 @@ struct BitBaseOp<__m256i> {
    }
 };
 #endif
+*/

@@ -29,7 +29,8 @@ RELEASE_CFLAGS=$(RELEASE_ARCH) -O3 $(BASE_FLAGS) -DNDEBUG -DNDBGPRINT
 LD_FLAGS=-Wl,-O1 -pthread
 
 # Source / Executable Variables
-CORE_SOURCES=graph.cpp io.cpp log.cpp scheduler.cpp bfs/naive.cpp bfs/sc2012.cpp bfs/parabfs.cpp bfs/noqueue.cpp bfs/batch64.cpp bfs/batch128.cpp bfs/batch256.cpp bfs/sse.cpp worker.cpp query4.cpp 
+# CORE_SOURCES=graph.cpp io.cpp log.cpp scheduler.cpp bfs/naive.cpp bfs/sc2012.cpp bfs/parabfs.cpp bfs/noqueue.cpp bfs/batch64.cpp bfs/batch128.cpp bfs/batch256.cpp bfs/sse.cpp worker.cpp query4.cpp 
+CORE_SOURCES=graph.cpp io.cpp log.cpp scheduler.cpp worker.cpp 
 ALL_SOURCES=main.cpp $(CORE_SOURCES)
 CORE_OBJECTS=$(addsuffix .o, $(basename $(CORE_SOURCES)))
 CORE_DEPS=$(addsuffix .depends, $(basename $(ALL_SOURCES)))

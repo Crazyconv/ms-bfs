@@ -20,14 +20,15 @@ namespace tschrono {
    };
 }
 
-#ifdef DEBUG
-   #ifdef NDBGPRINT
-      #define LOG_PRINT(X)
-   #else
-      #define LOG_PRINT(X) std::cerr<<tschrono::now()<<" "<<X<<std::endl
-   #endif
-#else
-   #define LOG_PRINT(X)
-#endif
+// #ifdef DEBUG
+//    #ifdef NDBGPRINT
+//       #define LOG_PRINT(X)
+//    #else
+//       #define LOG_PRINT(X) std::cerr<<tschrono::now()<<" "<<X<<std::endl
+//    #endif
+// #else
+//    #define LOG_PRINT(X)
+// #endif
+#define LOG_PRINT(X) std::cerr<<tschrono::now()<<" "<<X<<std::endl
 
 #define FATAL_ERROR(X) std::cerr<<"FATAL: "<<X<<std::endl; throw -1

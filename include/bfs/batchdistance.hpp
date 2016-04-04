@@ -3,7 +3,9 @@
 //Code must not be used, distributed, without written consent by the authors
 #pragma once
 
+/* deleted by Jiachun
 #include "sse.hpp"
+*/
 #include "../macros.hpp"
 
 #include <cassert>
@@ -143,6 +145,7 @@ struct BatchDistance<uint64_t, width> {
    }
 };
 
+/* deleted by jiachun
 // SSE Variant
 template<uint64_t width>
 struct BatchDistance<__m128i, width> {
@@ -352,5 +355,5 @@ struct BatchDistance<__m256i, width> {
    }
 };
 #endif
-
+*/
 }

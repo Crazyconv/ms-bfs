@@ -77,5 +77,5 @@ GraphData GraphData::loadFromPath(const std::string& edgesFile) {
 
    LOG_PRINT("[LOADING] Number of nodes: "<<nextNodeId);
 
-   return GraphData(nextNodeId, move(uniqueEdges), move(revNodeRenaming));
+   return GraphData(nextNodeId, move(uniqueEdges), move(revNodeRenaming), move(nodeRenaming));
 }

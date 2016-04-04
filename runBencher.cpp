@@ -1,114 +1,122 @@
 //Copyright (C) 2014 by Manuel Then, Moritz Kaufmann, Fernando Chirigati, Tuan-Anh Hoang-Vu, Kien Pham, Alfons Kemper, Huy T. Vo
 //
 //Code must not be used, distributed, without written consent by the authors
-#include "include/bench.hpp"
-#include "include/TraceStats.hpp"
+#include "include/global.hpp"
+#include "include/log.hpp"
+#include "include/worker.hpp"
+#include "extra.hpp"
 
-#define GEN_BENCH_BRANCH(X,CTYPE,WIDTH) \
-   X(batchType==sizeof(CTYPE)*8&&batchWidth==WIDTH) { \
-      bencher = new SpecializedBFSBenchmark<Query4::HugeBatchBfs<CTYPE,WIDTH,false>>("BatchBFS "+std::to_string(sizeof(CTYPE)*8)+" ("+std::to_string(WIDTH)+")"); \
-      maxBatchSize = sizeof(CTYPE)*8*WIDTH; \
-      bfsType = std::to_string(sizeof(CTYPE)*8)+"_"+std::to_string(WIDTH); \
+#include <string>
+#include <stdlib.h>
+#include <unordered_map>
+#include <fstream>
+#include <vector>
+
+#define GEN_BFS_TASK(X, WIDTH) \
+   X(width==WIDTH) { \
+      bfsRunner = new CustomRunner<WIDTH>(); \
    } \
 
 
-int main(int argc, char** argv) {
-    if(argc!=6 && argc!=7 && argc!=8) {
-      FATAL_ERROR("Not enough parameters");
-   }
+std::vector<std::unordered_map<int, int> > vid2bid;
+std::vector<std::vector<int> > bid2vid;
 
-   Queries queries = Queries::loadFromFile(std::string(argv[1]));
-   const int numRuns = std::stoi(std::string(argv[2]));
-
-   //size_t bfsLimit = std::numeric_limits<uint64_t>::max();
-   size_t bfsLimit = argc>=7?std::stoi(std::string(argv[6])):std::numeric_limits<uint64_t>::max();
-   bool checkNumTasks = argc>=8&&argv[7][0]=='f'?false:true;
-   size_t numThreads = std::thread::hardware_concurrency()/2;
-   if(argc>3) {
-      numThreads = std::stoi(std::string(argv[3]));
-   }
-   LOG_PRINT("[Main] Using "<< numThreads <<" threads");
-
-   size_t maxBatchSize;
-   BFSBenchmark* bencher;
-   std::string bfsType;
-   Query4::PARABFSRunner::setThreadNum(numThreads);//Using threads inside BFS
-   if(std::string(argv[4])=="naive") {
-      bencher = new SpecializedBFSBenchmark<Query4::BFSRunner>("BFSRunner");
-      maxBatchSize = 1;
-      bfsType = "naive";
-   } else if(std::string(argv[4])=="noqueue") {
-      bencher = new SpecializedBFSBenchmark<Query4::NoQueueBFSRunner>("NoQueueBFSRunner");
-      maxBatchSize = 1;
-      bfsType = "noqueue";
-   } else if(std::string(argv[4])=="scbfs") {
-      bencher = new SpecializedBFSBenchmark<Query4::SCBFSRunner>("SCBFSRunner");
-      maxBatchSize = 1;
-      bfsType = "scbfs";
-   } else if(std::string(argv[4])=="parabfs") {
-      bencher = new SpecializedBFSBenchmark<Query4::PARABFSRunner>("PARABFSRunner");
-      maxBatchSize = 1;
-      bfsType = "parabfs";
-      numThreads = 1;
-   } else {
-      const int batchType = std::stoi(std::string(argv[4]));
-      const int batchWidth = std::stoi(std::string(argv[5]));
-      GEN_BENCH_BRANCH(if,__m128i,8)
-      GEN_BENCH_BRANCH(else if,__m128i,4)
-      GEN_BENCH_BRANCH(else if,__m128i,1)
-      #ifdef AVX2
-      GEN_BENCH_BRANCH(else if,__m256i,2)
-      GEN_BENCH_BRANCH(else if,__m256i,1)
-      #endif
-      GEN_BENCH_BRANCH(else if,uint64_t,8)
-      GEN_BENCH_BRANCH(else if,uint64_t,1)
-      GEN_BENCH_BRANCH(else if,uint32_t,16)
-      GEN_BENCH_BRANCH(else if,uint32_t,1)
-      GEN_BENCH_BRANCH(else if,uint16_t,32)
-      GEN_BENCH_BRANCH(else if,uint16_t,1)
-      GEN_BENCH_BRANCH(else if,uint8_t,64)
-      GEN_BENCH_BRANCH(else if,uint8_t,1)
-      else {
-         exit(-1);
-      }
-   }
-
-   // Allocate additional worker threads
-   Workers workers(numThreads-1);
-
-   for(unsigned i=0; i<queries.queries.size(); i++) {
-      Query query = queries.queries[i];
-      LOG_PRINT("[Main] Executing query "<<query.dataset);
-      auto personGraph = Graph<Query4::PersonId>::loadFromPath(query.dataset);
-      if(bfsLimit>personGraph.size()) {
-         bfsLimit=personGraph.size();
-      }
-      if(checkNumTasks)
-      {
-         auto ranges = generateTasks(bfsLimit, personGraph.size(), maxBatchSize);
-         auto desiredTasks=numThreads*3;
-         if(ranges.size()<desiredTasks) {
-            FATAL_ERROR("[Main] Not enough tasks! #Threads="<<numThreads<<", #Tasks="<<ranges.size()<<", #DesiredTasks="<<desiredTasks<<", #maxBatchSize="<<maxBatchSize);
+bool build_source_vector(const std::string& sources, const size_t numThreads, const int numBFSs){
+   bid2vid.resize(numThreads);
+   std::ifstream infile(sources);
+   if(infile.is_open()){
+      int a, b = 0;
+      size_t t = 0;
+      while (infile >> a && t < numThreads){
+         bid2vid[t].push_back(a);
+         b ++;
+         if(b == numBFSs){
+        	 t ++;
+        	 b = 0;
          }
       }
 
-      // Run benchmark
-      std::cout<<"# Benchmarking "<<bencher->name<<" ... "<<std::endl<<"# ";
-      for(int i=0; i<numRuns; i++) {
-         bencher->initTrace(personGraph.numVertices, personGraph.numEdges, numThreads, bfsLimit, bfsType);
-         bencher->run(7, personGraph, query.reference, workers, bfsLimit);
-         std::cout<<bencher->lastRuntime()<<"ms ";
-         std::cout.flush();
-      }
-      std::cout<<std::endl;
+      infile.close();
 
-      std::cout<<bencher->getMinTrace()<<std::endl;
+      if(t < numThreads)
+         return false;
+
+      return true;
+   } else {
+      return false;
+   }
+}
+
+void build_vid2bid(const size_t numThreads, const Query4::PersonSubgraph& subgraph){
+	vid2bid.resize(numThreads);
+	for(size_t i = 0; i < numThreads; i++){
+		for(size_t j = 0; j < bid2vid[i].size(); j ++){
+			int externalId = subgraph.mapExternalNodeId(bid2vid[i][j]);
+			vid2bid[i].insert(std::make_pair(externalId, j));
+		}
+	}
+}
+
+
+int main(int argc, char** argv) {
+   if(argc < 5) {
+      FATAL_ERROR("Not enough parameters");
    }
 
-   workers.close();
+   std::string graph = argv[1];
+   std::string sources = argv[2];
+   size_t numThreads = std::stoi(argv[3]);
+   int numBFSs = std::stoi(argv[4]);
 
-   if(std::string(argv[4])=="parabfs") {
-     Query4::PARABFSRunner::finish();
+   const int width = numBFSs / 64;
+
+   // build source map
+   if(numBFSs % 64 != 0){
+      FATAL_ERROR("Number of concurrent BFSs should be multiples of 64");
+   }
+   if(numBFSs > 512){
+      FATAL_ERROR("support maximum 512 concurrent BFSs per thread");
+   }
+   if(!build_source_vector(sources, numThreads, numBFSs)){
+      FATAL_ERROR("No enough sources");
+   }
+
+   LOG_PRINT("[Main] Using "<< numThreads <<" threads, each running " << numBFSs << " concurrent BFSs");
+
+   VirtualRunner *bfsRunner = NULL;
+   GEN_BFS_TASK(if, 1)
+   GEN_BFS_TASK(else if, 2)
+   GEN_BFS_TASK(else if, 3)
+   GEN_BFS_TASK(else if, 4)
+   GEN_BFS_TASK(else if, 5)
+   GEN_BFS_TASK(else if, 6)
+   GEN_BFS_TASK(else if, 7)
+   GEN_BFS_TASK(else if, 8)
+
+   if(bfsRunner != NULL){
+	   auto personGraph = Graph<Query4::PersonId>::loadFromPath(graph);
+
+	   /*
+	   for(int i = 0; i < numThreads; i++){
+		   const std::unordered_map<int, int>& v2b = vid2bid[i];
+		   const std::vector<int>& b2v = bid2vid[i];
+		   for(std::unordered_map<int, int>::const_iterator it = v2b.begin(); it != v2b.end(); it++){
+			   printf("%d  %d - %d\n", i, it->first, b2v[it->second]);
+		   }
+	   }
+	   */
+
+	   tschrono::Time start = tschrono::now();
+	   // Allocate additional worker threads
+	   Workers workers(numThreads-1);
+
+	   bfsRunner -> run(numThreads, workers, personGraph);
+
+	   workers.close();
+
+	   tschrono::Time runtime = tschrono::now() - start;
+	   LOG_PRINT("finish in " << runtime << " ms");
+
    }
    return 0;
 }

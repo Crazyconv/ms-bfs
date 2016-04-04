@@ -29,9 +29,14 @@ struct GraphData {
    size_t numNodes;
    std::vector<NodePair> edges;
    std::unordered_map<uint64_t,uint64_t> revNodeRenaming;
+   std::unordered_map<uint64_t,uint64_t> nodeRenaming;
 
-   GraphData(const size_t numNodes, std::vector<NodePair> edges, std::unordered_map<uint64_t,uint64_t> revNodeRenaming)
-      : numNodes(numNodes), edges(move(edges)), revNodeRenaming(std::move(revNodeRenaming)) {
+   GraphData(const size_t numNodes, std::vector<NodePair> edges,
+		   std::unordered_map<uint64_t,uint64_t> revNodeRenaming,
+		   std::unordered_map<uint64_t,uint64_t> nodeRenaming)
+      : numNodes(numNodes), edges(move(edges)),
+		revNodeRenaming(std::move(revNodeRenaming)),
+		nodeRenaming(std::move(nodeRenaming)){
    }
 
    GraphData(GraphData& other) = delete;
@@ -107,8 +112,11 @@ public:
 
 private:
    Content* table;
-
+   // consecutive id -> application id
    std::unordered_map<uint64_t,uint64_t> revNodeRenaming;
+   // application id -> consecutive id
+   std::unordered_map<uint64_t,uint64_t> nodeRenaming;
+   // other data are based on consecutive id
 
 public:
    uint8_t* data;
@@ -120,7 +128,7 @@ public:
 
    Graph(Graph& other) = delete;
 
-   Graph(Graph&& other) : numVertices(other.numVertices), numEdges(other.numEdges), personComponents(other.personComponents), componentSizes(other.componentSizes), componentEdgeCount(other.componentEdgeCount), maxComponentSize(other.maxComponentSize), table(other.table), revNodeRenaming(std::move(other.revNodeRenaming)), data(other.data) {
+   Graph(Graph&& other) : numVertices(other.numVertices), numEdges(other.numEdges), personComponents(other.personComponents), componentSizes(other.componentSizes), componentEdgeCount(other.componentEdgeCount), maxComponentSize(other.maxComponentSize), table(other.table), revNodeRenaming(std::move(other.revNodeRenaming)), nodeRenaming(std::move(other.nodeRenaming)), data(other.data) {
       other.table=nullptr;
       other.data=nullptr;
    }
@@ -140,6 +148,15 @@ public:
    IdType mapInternalNodeId(IdType id) const {
       const auto iter = revNodeRenaming.find(id);
       if(iter!=revNodeRenaming.cend()) {
+         return iter->second;
+      } else {
+         throw -1;
+      }
+   }
+
+   IdType mapExternalNodeId(IdType id) const {
+      const auto iter = nodeRenaming.find(id);
+      if(iter!=nodeRenaming.cend()) {
          return iter->second;
       } else {
          throw -1;
@@ -176,6 +193,7 @@ public:
       // Build graph
       Graph personGraph(numPersons);
       personGraph.revNodeRenaming = std::move(graphData.revNodeRenaming);
+      personGraph.nodeRenaming = std::move(graphData.nodeRenaming);
       const size_t dataSize = (numPersons+edges.size())*sizeof(IdType);
       uint8_t* data = new uint8_t[dataSize]();
       {
