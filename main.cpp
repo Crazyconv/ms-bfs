@@ -2,6 +2,8 @@
 //
 //Code must not be used, distributed, without written consent by the authors
 #include "include/global.hpp"
+#include "include/log.hpp"
+#include "include/worker.hpp"
 #include "extra.hpp"
 
 #include <string>
@@ -65,6 +67,9 @@ int main(int argc, char** argv) {
    std::string sources = argv[2];
    size_t numThreads = std::stoi(argv[3]);
    int numBFSs = std::stoi(argv[4]);
+   std::string outprefix = "";
+   if(argc > 5)
+	   outprefix = argv[5];
 
    const int width = numBFSs / 64;
 
@@ -72,8 +77,8 @@ int main(int argc, char** argv) {
    if(numBFSs % 64 != 0){
       FATAL_ERROR("Number of concurrent BFSs should be multiples of 64");
    }
-   if(numBFSs > 512){
-      FATAL_ERROR("support maximum 512 concurrent BFSs per thread");
+   if(numBFSs > 1024){
+      FATAL_ERROR("support maximum 1024 concurrent BFSs per thread");
    }
    if(!build_source_vector(sources, numThreads, numBFSs)){
       FATAL_ERROR("No enough sources");
@@ -90,6 +95,14 @@ int main(int argc, char** argv) {
    GEN_BFS_TASK(else if, 6)
    GEN_BFS_TASK(else if, 7)
    GEN_BFS_TASK(else if, 8)
+   GEN_BFS_TASK(else if, 9)
+   GEN_BFS_TASK(else if, 10)
+   GEN_BFS_TASK(else if, 11)
+   GEN_BFS_TASK(else if, 12)
+   GEN_BFS_TASK(else if, 13)
+   GEN_BFS_TASK(else if, 14)
+   GEN_BFS_TASK(else if, 15)
+   GEN_BFS_TASK(else if, 16)
 
    if(bfsRunner != NULL){
 	   auto personGraph = Graph<Query4::PersonId>::loadFromPath(graph);
@@ -108,7 +121,7 @@ int main(int argc, char** argv) {
 	   // Allocate additional worker threads
 	   Workers workers(numThreads-1);
 
-	   bfsRunner -> run(numThreads, workers, personGraph);
+	   bfsRunner -> run(numThreads, workers, personGraph, outprefix);
 
 	   workers.close();
 

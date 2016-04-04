@@ -7,6 +7,7 @@
 #include "include/graph.hpp"
 #include "include/worker.hpp"
 #include "include/scheduler.hpp"
+#include "include/log.hpp"
 
 #include <array>
 #include <cstring>
@@ -14,6 +15,7 @@
 #include <cmath>
 #include <algorithm>
 #include <unordered_map>
+#include <fstream>
 
 
 #define SORTED_NEIGHBOR_PROCESSING
@@ -71,12 +73,13 @@ struct BFSTask{
 //    const std::unordered_map<int, int>& v2b;
     const std::vector<int>& b2v;
     const int subgraphSize;
+    const std::string& output;
 
     int totalReachable[BATCH_BITS_COUNT];
 
 public:
-    BFSTask(size_t index, const Query4::PersonSubgraph& subgraph): index(index), subgraph(subgraph),
-		/*v2b(vid2bid[index]),*/ b2v(bid2vid[index]), subgraphSize(subgraph.size()){
+    BFSTask(size_t index, const Query4::PersonSubgraph& subgraph, const std::string& output): index(index), subgraph(subgraph),
+		/*v2b(vid2bid[index]),*/ b2v(bid2vid[index]), subgraphSize(subgraph.size()), output(output){
 
     	// initialize totalReachable
         for(size_t i = 0; i < BATCH_BITS_COUNT; i++){
@@ -182,10 +185,19 @@ public:
             curToVisitQueue = 1-curToVisitQueue;
         } while(true);
 
-        for(size_t i = 0; i < BATCH_BITS_COUNT; i++){
-        	for(int j = 0; j < subgraphSize; j++){
-        		printf("%d %d %d\n", b2v[i], subgraph.mapInternalNodeId(j), dist[j][i]);
-        	}
+        if(output.length() > 0){
+        	std::ofstream outfile(output + "_" + std::to_string(index) + ".txt");
+        	if(outfile.is_open()){
+    			for(size_t i = 0; i < BATCH_BITS_COUNT; i++){
+    				for(int j = 0; j < subgraphSize; j++){
+    					outfile << b2v[i] << " " << subgraph.mapInternalNodeId(j) << " " << dist[j][i] << std::endl;
+//    					printf("%d %d %d\n", b2v[i], subgraph.mapInternalNodeId(j), dist[j][i]);
+    				}
+    			}
+        	    outfile.close();
+			} else {
+				LOG_PRINT("Unable to open file " << output << "_" << index << ".txt");
+			}
         }
 
         free(seen);
@@ -382,17 +394,17 @@ public:
 struct VirtualRunner {
 	VirtualRunner(){}
 	virtual ~VirtualRunner(){}
-	virtual void run(const size_t& numThreads, Workers & workers, const Query4::PersonSubgraph& subgraph) = 0;
+	virtual void run(const size_t& numThreads, Workers & workers, const Query4::PersonSubgraph& subgraph, const std::string& output) = 0;
 };
 
 template<uint64_t width>
 struct CustomRunner : public VirtualRunner{
 	CustomRunner(){}
     ~CustomRunner() { }
-    void run(const size_t& numThreads, Workers & workers, const Query4::PersonSubgraph& subgraph){
+    void run(const size_t& numThreads, Workers & workers, const Query4::PersonSubgraph& subgraph, const std::string& output){
     	   TaskGroup tasks;
     	   for(size_t i = 0; i < numThreads; i++){
-    		   BFSTask<width> bfsTask(i, subgraph);
+    		   BFSTask<width> bfsTask(i, subgraph, output);
     		   tasks.schedule(LambdaRunner::createLambdaTask(bfsTask));
     	   }
 
