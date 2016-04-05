@@ -20,7 +20,8 @@ GraphData GraphData::loadFromPath(const std::string& edgesFile) {
    io::MmapedFile file(edgesFile, O_RDONLY);
 
    Tokenizer tokenizer(file.mapping, file.size);
-   tokenizer.skipLine(); // Skip header line
+   /*tokenizer.skipLine(); // Skip header line   changed by Jiachun*/
+
 
    vector<NodePair> edges;
    edges.reserve(numEdges);
@@ -42,7 +43,8 @@ GraphData GraphData::loadFromPath(const std::string& edgesFile) {
    while(!tokenizer.isFinished()) {
       assert(edges.size()<numEdges*2);
       NodePair pair;
-      pair.idA = tokenizer.readId('|');
+      /*pair.idA = tokenizer.readId('|');  changed by Jiachun*/
+      pair.idA = tokenizer.readId(' ');
       pair.idB = tokenizer.readId('\n');
       if(pair.idA == pair.idB) {
          continue; //No self-edges
