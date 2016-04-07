@@ -12,13 +12,14 @@
 #include <fstream>
 #include <vector>
 
-#define GEN_BFS_TASK(X, WIDTH) \
+#define GEN_BFS_RUNNER(X, WIDTH) \
    X(width==WIDTH) { \
       bfsRunner = new CustomRunner<WIDTH>(); \
    } \
 
 
-std::vector<std::unordered_map<int, int> > vid2bid;
+/* std::vector<std::unordered_map<int, int> > vid2bid; */
+// each thread has a mapping from bit position to source id
 std::vector<std::vector<int> > bid2vid;
 
 bool build_source_vector(const std::string& sources, const size_t numThreads, const int numBFSs){
@@ -47,6 +48,7 @@ bool build_source_vector(const std::string& sources, const size_t numThreads, co
    }
 }
 
+/*
 void build_vid2bid(const size_t numThreads, const Query4::PersonSubgraph& subgraph){
 	vid2bid.resize(numThreads);
 	for(size_t i = 0; i < numThreads; i++){
@@ -56,6 +58,7 @@ void build_vid2bid(const size_t numThreads, const Query4::PersonSubgraph& subgra
 		}
 	}
 }
+*/
 
 
 int main(int argc, char** argv) {
@@ -87,40 +90,34 @@ int main(int argc, char** argv) {
    LOG_PRINT("[Main] Using "<< numThreads <<" threads, each running " << numBFSs << " concurrent BFSs");
 
    VirtualRunner *bfsRunner = NULL;
-   GEN_BFS_TASK(if, 1)
-   GEN_BFS_TASK(else if, 2)
-   GEN_BFS_TASK(else if, 3)
-   GEN_BFS_TASK(else if, 4)
-   GEN_BFS_TASK(else if, 5)
-   GEN_BFS_TASK(else if, 6)
-   GEN_BFS_TASK(else if, 7)
-   GEN_BFS_TASK(else if, 8)
-   GEN_BFS_TASK(else if, 9)
-   GEN_BFS_TASK(else if, 10)
-   GEN_BFS_TASK(else if, 11)
-   GEN_BFS_TASK(else if, 12)
-   GEN_BFS_TASK(else if, 13)
-   GEN_BFS_TASK(else if, 14)
-   GEN_BFS_TASK(else if, 15)
-   GEN_BFS_TASK(else if, 16)
+   /* We need a constant (here is 1 ~ 16) for the template variable in CustomRunner<WIDTH> */
+   GEN_BFS_RUNNER(if, 1)
+   GEN_BFS_RUNNER(else if, 2)
+   GEN_BFS_RUNNER(else if, 3)
+   GEN_BFS_RUNNER(else if, 4)
+   GEN_BFS_RUNNER(else if, 5)
+   GEN_BFS_RUNNER(else if, 6)
+   GEN_BFS_RUNNER(else if, 7)
+   GEN_BFS_RUNNER(else if, 8)
+   GEN_BFS_RUNNER(else if, 9)
+   GEN_BFS_RUNNER(else if, 10)
+   GEN_BFS_RUNNER(else if, 11)
+   GEN_BFS_RUNNER(else if, 12)
+   GEN_BFS_RUNNER(else if, 13)
+   GEN_BFS_RUNNER(else if, 14)
+   GEN_BFS_RUNNER(else if, 15)
+   GEN_BFS_RUNNER(else if, 16)
 
    if(bfsRunner != NULL){
-	   auto personGraph = Graph<Query4::PersonId>::loadFromPath(graph);
 
-	   /*
-	   for(int i = 0; i < numThreads; i++){
-		   const std::unordered_map<int, int>& v2b = vid2bid[i];
-		   const std::vector<int>& b2v = bid2vid[i];
-		   for(std::unordered_map<int, int>::const_iterator it = v2b.begin(); it != v2b.end(); it++){
-			   printf("%d  %d - %d\n", i, it->first, b2v[it->second]);
-		   }
-	   }
-	   */
+	   // load graph
+	   auto personGraph = Graph<Query4::PersonId>::loadFromPath(graph);
 
 	   tschrono::Time start = tschrono::now();
 	   // Allocate additional worker threads
 	   Workers workers(numThreads-1);
 
+	   // perform BFS
 	   bfsRunner -> run(numThreads, workers, personGraph, outprefix);
 
 	   workers.close();

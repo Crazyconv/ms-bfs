@@ -21,6 +21,7 @@
 #define SORTED_NEIGHBOR_PROCESSING
 #define DO_PREFETCH
 
+// data structure for bit field
 template<uint64_t width>
 struct BatchBits {
     static const size_t TYPE_BITS_COUNT = 64;
@@ -61,6 +62,7 @@ struct BatchBits {
 
 static const unsigned int PREFETCH=38;
 
+// a BFSTask is executed by a thread, the execution is defined in void operator()()
 template<uint64_t width>
 struct BFSTask{
     static const size_t TYPE_BITS = 64;
@@ -68,14 +70,14 @@ struct BFSTask{
     static const size_t BATCH_BITS_COUNT = TYPE_BITS * WIDTH;
     typedef BatchBits<width> Bitset;
 
-    size_t index;
-    const Query4::PersonSubgraph& subgraph;
-//    const std::unordered_map<int, int>& v2b;
-    const std::vector<int>& b2v;
-    const int subgraphSize;
-    const std::string& output;
+    size_t index;                                         /* thread id */
+    const Query4::PersonSubgraph& subgraph;               /* graph data */
+    /* const std::unordered_map<int, int>& v2b; */
+    const std::vector<int>& b2v;                          /* bit pos to source id mapping */
+    const int subgraphSize;                               /* graph size */
+    const std::string& output;                            /* output file name prefix */
 
-    int totalReachable[BATCH_BITS_COUNT];
+    int totalReachable[BATCH_BITS_COUNT];                 /* #reachable vertices from a souuce */
 
 public:
     BFSTask(size_t index, const Query4::PersonSubgraph& subgraph, const std::string& output): index(index), subgraph(subgraph),
@@ -84,10 +86,14 @@ public:
     	// initialize totalReachable
         for(size_t i = 0; i < BATCH_BITS_COUNT; i++){
         	int externalId = exId(b2v[i]);
+        	/* personComponents[i]: id of the component that vertex i belongs to
+        	 * componentSize[j]: size of component j
+        	 */
         	totalReachable[i] = subgraph.componentSizes[subgraph.personComponents[externalId]] - 1;
         }
     }
     inline int exId(int vid){
+    	/* mapping from internal id (real id, read from graph file) to external id (consecutive id) */
     	return subgraph.mapExternalNodeId(vid);
     }
     void operator()(){
@@ -112,6 +118,7 @@ public:
         new(seen) Bitset[subgraphSize]();
 
         // Initialize distance vector
+        /* dist[subgraphSize][BATCH_BITS_COUNT] */
         int ** dist = new int*[subgraphSize];
         for(int i = 0; i < subgraphSize; i++){
             dist[i] = new int[BATCH_BITS_COUNT];
@@ -119,7 +126,7 @@ public:
         }
 
         // Initialize reachable vector
-        int * reachable = new int[subgraphSize];
+        int * reachable = new int[BATCH_BITS_COUNT];
 
         // Initialize active queries
         for(int i = 0; i < BATCH_BITS_COUNT; i++){
@@ -131,13 +138,15 @@ public:
         }
 
         // Initialize iteration workstate
+        /* bit 1 means that BFS has not complete */
         Bitset processQuery;
         processQuery.negate();
 
+        /* some data structure to check #vertices discovered by each BFS */
+        /* don't really understand the internal logic */
         uint32_t queriesToProcess=BATCH_BITS_COUNT;
         alignas(64) uint32_t numDistDiscovered[BATCH_BITS_COUNT];
         memset(numDistDiscovered,0,BATCH_BITS_COUNT*sizeof(uint32_t));
-
         Query4::BatchDistance<uint64_t, width> batchDist(numDistDiscovered);
 
         size_t curToVisitQueue = 0;
@@ -158,6 +167,10 @@ public:
 			#endif /*DEBUG*/
 
 			for(uint32_t pos=0; pos<BATCH_BITS_COUNT; pos++) {
+			    /* update processQuery
+			     * if a bfs has discovered all vertices reachable, change the corresponding bit to 1
+			     * and decrease queriesToProcess
+			     * */
                 updateProcessQuery(processQuery, pos, numDistDiscovered[pos], reachable, queriesToProcess);
 
 				#ifdef DEBUG
@@ -168,6 +181,7 @@ public:
 				#endif /*DEBUG*/
             }
 
+			/* if no more to process, break from the loop */
             if(queriesToProcess==0) {
                 break;
             }
@@ -218,10 +232,8 @@ public:
         auto field_bit = pos-(field*Bitset::TYPE_BITS_COUNT);
 
         if(BitBaseOp<uint64_t>::notZero(processQuery.data[field] & BitBaseOp<uint64_t>::getSetMask(field_bit))) {
-        	int externalId = exId(b2v[pos]);
-            reachable[externalId] += numDiscovered;
 
-            if(totalReachable[pos] == reachable[externalId] || numDiscovered==0) {
+            if(totalReachable[pos] == reachable[pos] || numDiscovered==0) {
                 processQuery.data[field] = BitBaseOp<uint64_t>::andNot(processQuery.data[field], BitBaseOp<uint64_t>::getSetMask(field_bit));
                 queriesToProcess--;
             }
@@ -271,6 +283,7 @@ public:
 		}
 		#endif /*DO_PREFETCH*/
 
+		/* for each vertex */
 		for (Query4::PersonId curPerson = startPerson; curPerson<limit; ++curPerson) {
 		   auto curVisit = visitList[curPerson];
 
@@ -291,6 +304,7 @@ public:
 			  continue;
 		   }
 
+		   /* neighbors */
 		   const auto& curFriends=*subgraph.retrieve(curPerson);
 		   auto friendsBounds = curFriends.bounds();
 
@@ -304,6 +318,8 @@ public:
 		   for(int i=0; i<width; i++) {
 			  curVisit.data[i] &= processQuery.data[i];
 		   }
+
+		   /* for each neighbor, update nextVisitList */
 		   while(friendsBounds.first != friendsBounds.second) {
 			  #ifdef DO_PREFETCH
 			  if(friendsBounds.first+PREFETCH < friendsBounds.second) {
@@ -316,11 +332,14 @@ public:
 			  }
 			  ++friendsBounds.first;
 		   }
+
+		   /* reset visitList */
 		   for(int i=0; i<width; i++) {
 			  visitList[curPerson].data[i] = BitBaseOp<uint64_t>::zero();
 		   }
 		}
 
+		/* udpate seen and dist */
 		for (Query4::PersonId curPerson = 0; curPerson<limit; ++curPerson) {
 		   for(unsigned i=0; i<width; i++) {
 			  const uint64_t nextVisit = nextVisitList[curPerson].data[i];
@@ -347,7 +366,8 @@ public:
 
         for (Query4::PersonId curPerson = startPerson; curPerson<limit; ++curPerson) {
             Bitset validVisit = createVisitList(visitList[curPerson], processQuery);
-            // Skip persons with empty visit list
+
+            /* Skip persons with empty visit list */
             if(validVisit.count() == 0) { continue; }
 
             const auto& curFriends=*subgraph.retrieve(curPerson);
@@ -361,6 +381,7 @@ public:
 			__builtin_prefetch(nextVisitList + *(friendsBounds.first+2),1);
 			#endif /*DO_PREFETCH*/
 
+			/* for each neighbor, update visitNext, seen and dist */
             while(friendsBounds.first != friendsBounds.second) {
 
 				#ifdef DO_PREFETCH
@@ -401,6 +422,9 @@ template<uint64_t width>
 struct CustomRunner : public VirtualRunner{
 	CustomRunner(){}
     ~CustomRunner() { }
+
+    /* initialize task and execute each task in one thread */
+    /* don't understand the details of the Scheduler, Executor, etc */
     void run(const size_t& numThreads, Workers & workers, const Query4::PersonSubgraph& subgraph, const std::string& output){
     	   TaskGroup tasks;
     	   for(size_t i = 0; i < numThreads; i++){
