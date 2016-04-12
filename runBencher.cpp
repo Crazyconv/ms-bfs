@@ -21,6 +21,8 @@
 /* std::vector<std::unordered_map<int, int> > vid2bid; */
 // each thread has a mapping from bit position to source id
 std::vector<std::vector<int> > bid2vid;
+std::vector<uint64_t> exe_time;
+std::vector<uint64_t> write_time;
 
 bool build_source_vector(const std::string& sources, const size_t numThreads, const int numBFSs){
    bid2vid.resize(numThreads);
@@ -70,9 +72,12 @@ int main(int argc, char** argv) {
    std::string sources = argv[2];
    size_t numThreads = std::stoi(argv[3]);
    int numBFSs = std::stoi(argv[4]);
+   std::string stat_file = "";
    std::string outprefix = "";
    if(argc > 5)
-	   outprefix = argv[5];
+   	   stat_file = argv[5];
+   if(argc > 6)
+	   outprefix = argv[6];
 
    const int width = numBFSs / 64;
 
@@ -109,21 +114,34 @@ int main(int argc, char** argv) {
    GEN_BFS_RUNNER(else if, 16)
 
    if(bfsRunner != NULL){
+	   tschrono::Time start = tschrono::now();
 
 	   // load graph
 	   auto personGraph = Graph<Query4::PersonId>::loadFromPath(graph);
 
-	   tschrono::Time start = tschrono::now();
+	   tschrono::Time load_time = tschrono::now() - start;
+
 	   // Allocate additional worker threads
 	   Workers workers(numThreads-1);
+	   exe_time.resize(numThreads);
+	   write_time.resize(numThreads);
 
 	   // perform BFS
 	   bfsRunner -> run(numThreads, workers, personGraph, outprefix);
 
 	   workers.close();
 
-	   tschrono::Time runtime = tschrono::now() - start;
-	   LOG_PRINT("finish in " << runtime << " ms");
+	   if(stat_file.length() > 0){
+
+			std::ofstream outfile(stat_file);
+			if(outfile.is_open()){
+				outfile << load_time << "\t" << *(std::max_element(exe_time.begin(), exe_time.end())) << "\t"
+						<< *(std::max_element(write_time.begin(), write_time.end())) << std::endl;
+				outfile.close();
+			} else {
+				LOG_PRINT("Unable to open file " << stat_file);
+			}
+	   }
 
    }
    return 0;

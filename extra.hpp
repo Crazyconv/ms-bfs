@@ -81,7 +81,7 @@ struct BFSTask{
 
 public:
     BFSTask(size_t index, const Query4::PersonSubgraph& subgraph, const std::string& output): index(index), subgraph(subgraph),
-		/*v2b(vid2bid[index]),*/ b2v(bid2vid[index]), subgraphSize(subgraph.size()), output(output){
+		b2v(bid2vid[index]), subgraphSize(subgraph.size()), output(output){
 
     	// initialize totalReachable
         for(size_t i = 0; i < BATCH_BITS_COUNT; i++){
@@ -97,6 +97,7 @@ public:
     	return subgraph.mapExternalNodeId(vid);
     }
     void operator()(){
+    	tschrono::Time start = tschrono::now();
 
         // Initialize visit lists
         std::array<Bitset*,2> visitLists;
@@ -199,7 +200,11 @@ public:
             curToVisitQueue = 1-curToVisitQueue;
         } while(true);
 
+        exe_time[index] = tschrono::now() - start;
+
         if(output.length() > 0){
+        	start = tschrono::now();
+
         	std::ofstream outfile(output + "_" + std::to_string(index) + ".txt");
         	if(outfile.is_open()){
     			for(size_t i = 0; i < BATCH_BITS_COUNT; i++){
@@ -212,6 +217,8 @@ public:
 			} else {
 				LOG_PRINT("Unable to open file " << output << "_" << index << ".txt");
 			}
+
+        	write_time[index] = tschrono::now() - start;
         }
 
         free(seen);
