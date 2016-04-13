@@ -135,8 +135,9 @@ int main(int argc, char** argv) {
 
 			std::ofstream outfile(stat_file);
 			if(outfile.is_open()){
-				outfile << load_time << "\t" << *(std::max_element(exe_time.begin(), exe_time.end())) << "\t"
-						<< *(std::max_element(write_time.begin(), write_time.end())) << std::endl;
+				outfile << numThreads * numBFSs << "," << numThreads << "," << numBFSs << ","
+						<< load_time/1000.0 << "," << (*(std::max_element(exe_time.begin(), exe_time.end())))/1000.0 << ","
+						<< (*(std::max_element(write_time.begin(), write_time.end())))/1000.0 << std::endl;
 				outfile.close();
 			} else {
 				LOG_PRINT("Unable to open file " << stat_file);
