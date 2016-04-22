@@ -18,8 +18,8 @@
 #include <fstream>
 
 
-#define SORTED_NEIGHBOR_PROCESSING
-#define DO_PREFETCH
+// #define SORTED_NEIGHBOR_PROCESSING
+// #define DO_PREFETCH
 
 // data structure for bit field
 template<uint64_t width>

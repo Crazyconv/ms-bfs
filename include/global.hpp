@@ -12,7 +12,7 @@ extern std::vector<uint64_t> write_time;
 
 
 namespace Query4 {
-   typedef uint32_t PersonId; // Type for person ids
+   typedef uint64_t PersonId; // Type for person ids
    typedef Graph<PersonId> PersonSubgraph;
 }
 
