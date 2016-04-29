@@ -73,11 +73,11 @@ struct BFSTask{
     size_t index;                                         /* thread id */
     const Query4::PersonSubgraph& subgraph;               /* graph data */
     /* const std::unordered_map<int, int>& v2b; */
-    const std::vector<int>& b2v;                          /* bit pos to source id mapping */
-    const int subgraphSize;                               /* graph size */
+    const std::vector<uint64_t>& b2v;                          /* bit pos to source id mapping */
+    const uint64_t subgraphSize;                               /* graph size */
     const std::string& output;                            /* output file name prefix */
 
-    int totalReachable[BATCH_BITS_COUNT];                 /* #reachable vertices from a souuce */
+    uint64_t totalReachable[BATCH_BITS_COUNT];                 /* #reachable vertices from a souuce */
 
 public:
     BFSTask(size_t index, const Query4::PersonSubgraph& subgraph, const std::string& output): index(index), subgraph(subgraph),
@@ -85,14 +85,14 @@ public:
 
     	// initialize totalReachable
         for(size_t i = 0; i < BATCH_BITS_COUNT; i++){
-        	int externalId = exId(b2v[i]);
+        	uint64_t externalId = exId(b2v[i]);
         	/* personComponents[i]: id of the component that vertex i belongs to
         	 * componentSize[j]: size of component j
         	 */
         	totalReachable[i] = subgraph.componentSizes[subgraph.personComponents[externalId]] - 1;
         }
     }
-    inline int exId(int vid){
+    inline uint64_t exId(uint64_t vid){
     	/* mapping from internal id (real id, read from graph file) to external id (consecutive id) */
     	return subgraph.mapExternalNodeId(vid);
     }
@@ -120,22 +120,22 @@ public:
 
         // Initialize distance vector
         /* dist[subgraphSize][BATCH_BITS_COUNT] */
-        int ** dist = new int*[subgraphSize];
-        for(int i = 0; i < subgraphSize; i++){
-            dist[i] = new int[BATCH_BITS_COUNT];
-            memset(dist[i],-1,BATCH_BITS_COUNT*sizeof(int));
+        double ** dist = new double*[subgraphSize];
+        for(uint64_t i = 0; i < subgraphSize; i++){
+            dist[i] = new double[BATCH_BITS_COUNT];
+            memset(dist[i],0,BATCH_BITS_COUNT*sizeof(double));
         }
 
         // Initialize reachable vector
-        int * reachable = new int[BATCH_BITS_COUNT];
+        uint64_t * reachable = new uint64_t[BATCH_BITS_COUNT];
 
         // Initialize active queries
         for(int i = 0; i < BATCH_BITS_COUNT; i++){
-        	int externalId = exId(b2v[i]);
+        	uint64_t externalId = exId(b2v[i]);
             seen[externalId].setBit(i);
             visitLists[0][externalId].setBit(i);
             minPerson = std::min(minPerson, (Query4::PersonId)externalId);
-            dist[externalId][i] = 0;
+            dist[externalId][i] = 0.0;
         }
 
         // Initialize iteration workstate
@@ -151,7 +151,7 @@ public:
         Query4::BatchDistance<uint64_t, width> batchDist(numDistDiscovered);
 
         size_t curToVisitQueue = 0;
-        uint32_t nextDistance = 1;
+        double nextDistance = 1.0;
 
         Query4::PersonId startPerson=minPerson;
 
@@ -186,7 +186,7 @@ public:
             if(queriesToProcess==0) {
                 break;
             }
-            nextDistance++;
+            nextDistance += 1.0;
 
 			#ifdef DEBUG
             assert(newReached!=0);
@@ -208,7 +208,7 @@ public:
         	std::ofstream outfile(output + "_" + std::to_string(index) + ".txt");
         	if(outfile.is_open()){
     			for(size_t i = 0; i < BATCH_BITS_COUNT; i++){
-    				for(int j = 0; j < subgraphSize; j++){
+    				for(uint64_t j = 0; j < subgraphSize; j++){
     					outfile << b2v[i] << " " << subgraph.mapInternalNodeId(j) << " " << dist[j][i] << std::endl;
 //    					printf("%d %d %d\n", b2v[i], subgraph.mapInternalNodeId(j), dist[j][i]);
     				}
@@ -224,7 +224,7 @@ public:
         free(seen);
         free(visitLists[0]);
         free(visitLists[1]);
-        for(int i = 0; i < subgraphSize; i++){
+        for(uint64_t i = 0; i < subgraphSize; i++){
             delete[] dist[i];
         }
         delete[] dist;
@@ -233,7 +233,7 @@ public:
 
 
     void updateProcessQuery(Bitset& processQuery, const uint32_t pos, const uint32_t numDiscovered,
-        int* reachable, uint32_t& queriesToProcess) {
+        uint64_t* reachable, uint32_t& queriesToProcess) {
 
         auto field = pos/Bitset::TYPE_BITS_COUNT;
         auto field_bit = pos-(field*Bitset::TYPE_BITS_COUNT);
@@ -268,7 +268,7 @@ public:
         return validVisit;
     }
 
-    void updateDist(unsigned field, uint64_t newVisits, int* dist, uint32_t nextDistance){
+    void updateDist(unsigned field, uint64_t newVisits, double* dist, double nextDistance){
     	uint64_t lone = 1;
         for(uint64_t i = 0; i < 64 && newVisits != 0; i++){
             if((newVisits & (lone << i)) != 0){
@@ -280,8 +280,8 @@ public:
 
 	#ifdef SORTED_NEIGHBOR_PROCESSING
     void runBatchRound(const Query4::PersonSubgraph& subgraph, const Query4::PersonId startPerson, const Query4::PersonId limit,
-            Bitset* visitList, Bitset* nextVisitList, Bitset* __restrict__ seen, int** dist,
-    		Query4::BatchDistance<uint64_t, width>& batchDist, const Bitset processQuery, uint32_t nextDistance) {
+            Bitset* visitList, Bitset* nextVisitList, Bitset* __restrict__ seen, double** dist,
+    		Query4::BatchDistance<uint64_t, width>& batchDist, const Bitset processQuery, double nextDistance) {
 
 		#ifdef DO_PREFETCH
 		const int p2=std::min(PREFETCH, (unsigned int)(limit-startPerson));
@@ -368,8 +368,8 @@ public:
 	#else /*SORTED_NEIGHBOR_PROCESSING*/
 
     void runBatchRound(const Query4::PersonSubgraph& subgraph, const Query4::PersonId startPerson, const Query4::PersonId limit,
-        Bitset* visitList, Bitset* nextVisitList, Bitset* __restrict__ seen, int** dist,
-		Query4::BatchDistance<uint64_t, width>& batchDist, const Bitset processQuery, uint32_t nextDistance) {
+        Bitset* visitList, Bitset* nextVisitList, Bitset* __restrict__ seen, double** dist,
+		Query4::BatchDistance<uint64_t, width>& batchDist, const Bitset processQuery, double nextDistance) {
 
         for (Query4::PersonId curPerson = startPerson; curPerson<limit; ++curPerson) {
             Bitset validVisit = createVisitList(visitList[curPerson], processQuery);

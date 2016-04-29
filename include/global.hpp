@@ -5,8 +5,8 @@
 #include <vector>
 #include "graph.hpp"
 
-extern std::vector<std::unordered_map<int, int> > vid2bid;
-extern std::vector<std::vector<int> > bid2vid;
+extern std::vector<std::unordered_map<uint64_t, int> > vid2bid;
+extern std::vector<std::vector<uint64_t> > bid2vid;
 extern std::vector<uint64_t> exe_time;
 extern std::vector<uint64_t> write_time;
 

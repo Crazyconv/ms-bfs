@@ -20,7 +20,7 @@
 
 /* std::vector<std::unordered_map<int, int> > vid2bid; */
 // each thread has a mapping from bit position to source id
-std::vector<std::vector<int> > bid2vid;
+std::vector<std::vector<uint64_t> > bid2vid;
 std::vector<uint64_t> exe_time;
 std::vector<uint64_t> write_time;
 
